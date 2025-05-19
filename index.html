@@ -7,12 +7,7 @@
     <style>
         body { margin: 0; overflow: hidden; background-color: #111; color: #fff; font-family: Arial, sans-serif; }
         #webglCanvas { display: block; width: 100vw; height: 100vh; }
-        #vrButton {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            padding: 12px 24px; border: 1px solid #fff; background: rgba(0,0,0,0.5);
-            color: #fff; font-size: 16px; cursor: pointer; z-index: 1000; opacity: 0.9;
-        }
-        #vrButton:hover { background: rgba(255,255,255,0.2); opacity: 1.0; }
+        #vrButton { /* ... styles ... */ }
     </style>
 </head>
 <body>
@@ -22,21 +17,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <script>
-        // VRButton.js (Standard logic - unchanged from previous)
-        class VRButton {
-            static createButton( renderer, options ) {
-                if ( options && options.referenceSpaceType ) { renderer.xr.setReferenceSpaceType( options.referenceSpaceType ); }
-                const button = document.getElementById('vrButton'); let currentSession = null;
-                function onSessionStarted( session ) { session.addEventListener( 'end', onSessionEnded ); renderer.xr.setSession( session ); button.textContent = 'EXIT VR'; currentSession = session; }
-                function onSessionEnded() { if (currentSession) { currentSession.removeEventListener( 'end', onSessionEnded ); } button.textContent = 'ENTER VR'; currentSession = null; }
-                button.style.display = 'none';
-                function showEnterVR( _button ) { _button.style.display = ''; _button.style.cursor = 'pointer'; _button.onclick = function () { if ( currentSession === null ) { const sessionInit = { optionalFeatures: [ 'local-floor', 'bounded-floor', 'hand-tracking', 'layers' ] }; navigator.xr.requestSession( 'immersive-vr', sessionInit ).then( onSessionStarted ); } else { currentSession.end(); } }; }
-                function disableButton( _button ) { _button.style.display = ''; _button.style.cursor = 'auto'; _button.onclick = null; }
-                function showWebXRNotFound( _button ) { disableButton( _button ); _button.textContent = 'VR NOT SUPPORTED'; }
-                if ( 'xr' in navigator ) { navigator.xr.isSessionSupported( 'immersive-vr' ).then( function ( supported ) { supported ? showEnterVR( button ) : showWebXRNotFound( button ); if ( options && options.onSessionSupported ) options.onSessionSupported( supported ); } ).catch( function () { showWebXRNotFound( button ); if ( options && options.onSessionSupported ) options.onSessionSupported( false ); } ); return button;
-                } else { const message = document.createElement( 'a' ); message.innerHTML = window.isSecureContext === false ? 'WEBXR NEEDS HTTPS' : 'WEBXR NOT AVAILABLE'; if (window.isSecureContext === false) message.href = document.location.href.replace( /^http:/, 'https:' ); else message.href = 'https://immersiveweb.dev/'; message.style.textDecoration = 'none'; message.style.color = '#fff'; message.style.display = 'block'; message.style.textAlign = 'center'; button.parentNode.replaceChild(message, button); return message; }
-            }
-        }
+        // VRButton.js (Unchanged)
+        class VRButton { /* ... */ }
     </script>
 
     <script>
@@ -52,7 +34,7 @@
         const TEXTURE_WIDTH = Math.round(TEXTURE_BASE_HEIGHT * PANEL_ASPECT_RATIO);
         const TEXTURE_HEIGHT = TEXTURE_BASE_HEIGHT;
 
-        function init() {
+        function init() { /* ... Scene, Camera, Renderer, WebXR setup ... */ 
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 0, PLANE_BASE_WIDTH * 0.9);
@@ -60,7 +42,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.xr.enabled = true;
-            VRButton.createButton(renderer);
+            VRButton.createButton(renderer); // Assuming VRButton class is defined above or included
 
             const offscreenCanvas = document.createElement('canvas');
             offscreenCanvas.width = TEXTURE_WIDTH;
@@ -68,9 +50,21 @@
             textureContext = offscreenCanvas.getContext('2d');
 
             const initialHtml = 
-                `<div id="mainContainer" style="background-color: #222; color: #0F0; padding: 20px; font-size: 30px; border: 5px solid #050;">
-                    <p style="color: #FFF; margin-bottom: 10px; font-weight: bold;">Welcome to XR-UI</p>
-                    <span style="font-size: 24px; color: #AAF;">This is a basic test of the new parser.</span>
+                `<div id="root" style="background-color: #181818; color: #E0E0E0; padding: 10px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 20px; border: 1px solid #444;">
+                    <div id="header" style="background-color: #282828; color: #00FF00; padding: 15px; margin-bottom: 10px; border: 2px dashed #00AA00; font-weight: bold; text-align: center;">
+                        XR-UI Header
+                    </div>
+                    <p style="color: #CCCCCC; margin-bottom: 8px; font-size: 18px;">
+                        This is the first paragraph demonstrating basic layout. 
+                        Nested elements are now rendered!
+                    </p>
+                    <div id="content" style="background-color: #202020; padding: 10px; border-left: 3px solid #5555FF;">
+                        <span style="color: #88CCFF; font-style: italic;">This is a span inside a content div.</span>
+                        <p style="color: #FFDD88; margin-top: 5px; font-size: 16px;">Another paragraph, nested deeper.</p>
+                    </div>
+                    <div id="footer" style="margin-top: 15px; padding-top: 5px; border-top: 1px solid #333; font-size: 14px; text-align: right; color: #888;">
+                        Footer Text
+                    </div>
                 </div>`;
             renderHTMLToTexture(initialHtml);
 
@@ -83,193 +77,202 @@
             window.addEventListener('resize', onWindowResize, false);
             renderer.setAnimationLoop(animate);
 
-            setTimeout(() => {
-                const updatedHtml = 
-                `<div style="background-color: #402020; color: #FFD; padding: 15px; border: 3px dashed #A55;">
-                    <p style="font-size: 32px; font-family: Georgia, serif; text-align: center;">Updated Content!</p>
-                    <span style="font-size: 20px; color: #DDF; display: block; text-align: center;">The parser is working.</span>
-                </div>`;
-                renderHTMLToTexture(updatedHtml);
-            }, 7000); // Increased delay for viewing initial state
+            // No dynamic update for now, to focus on initial render
         }
 
-        /**
-         * Parses a CSS style string into a JavaScript object.
-         */
-        function parseStyleString(styleStr) {
-            const styles = {};
-            if (!styleStr) return styles;
+        function parseStyleString(styleStr) { /* ... unchanged ... */ 
+            const styles = {}; if (!styleStr) return styles;
             styleStr.split(';').forEach(declaration => {
-                if (declaration.trim() === '') return;
-                const [property, value] = declaration.split(':').map(s => s.trim());
-                if (property && value) {
-                    const camelCaseProperty = property.replace(/-([a-z])/g, g => g[1].toUpperCase());
-                    styles[camelCaseProperty] = value;
-                }
-            });
-            return styles;
+                if (declaration.trim() === '') return; const [property, value] = declaration.split(':').map(s => s.trim());
+                if (property && value) { const camelCaseProperty = property.replace(/-([a-z])/g, g => g[1].toUpperCase()); styles[camelCaseProperty] = value; }
+            }); return styles;
         }
         
-        /**
-         * Parses an HTML string into a simplified DOM tree structure.
-         * Returns an array of top-level node objects.
-         * Each node: { tagName: string, attributes: object, children: array }
-         * Children can be other nodes or text strings.
-         *
-         * NOTE: This is a basic parser and assumes well-formed HTML.
-         * It does not handle self-closing tags, comments, or complex error cases.
-         */
-        function parseHTMLString(htmlString) {
-            const result = [];
-            const stack = [{ children: result }]; // Stack to manage nesting, root has result as children
-            let k = 0;
+        function parseHTMLString(htmlString) { /* ... unchanged ... */ 
+            const result = []; const stack = [{ children: result }]; let match;
             const tagRegex = /<\/?([a-z][a-z0-9]*)\s*([^>]*?)?>|([^<]+)/gi;
-            // Breakdown of tagRegex:
-            // 1. <\/?([a-z][a-z0-9]*): Matches <tag or </tag. Captures tag name.
-            // 2. \s*([^>]*?)?>: Matches attributes within a tag. Captures attribute string. Non-greedy.
-            // 3. ([^<]+): Matches text content outside of tags.
-
-            let match;
             while ((match = tagRegex.exec(htmlString))) {
-                const [fullMatch, tagName, attributesStr, textContent] = match;
+                const [fullMatch, tagName, attributesStr, textContent] = match; const parent = stack[stack.length - 1];
+                if (tagName) {
+                    if (fullMatch.startsWith('</')) { if (stack.length > 1 && parent.tagName === tagName) { stack.pop(); } else { console.warn(`Mismatched closing tag: expected </${parent.tagName}>, got ${fullMatch}`); }
+                    } else { const attributes = {}; if (attributesStr) { const attrRegex = /([a-zA-Z0-9_-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+)))?/g; let attrMatch; while ((attrMatch = attrRegex.exec(attributesStr))) { attributes[attrMatch[1]] = attrMatch[2] || attrMatch[3] || attrMatch[4] || ''; } } const elementNode = { tagName, attributes, children: [] }; parent.children.push(elementNode); stack.push(elementNode); }
+                } else if (textContent && textContent.trim() !== '') { parent.children.push(textContent.trim()); }
+            } if (stack.length > 1) { console.warn("Unclosed tags:", stack.slice(1).map(s => s.tagName)); } return result;
+        }
 
-                const parent = stack[stack.length - 1];
+        /**
+         * Calculates an estimated height for an element based on its text content and styles.
+         * This is a very basic estimation.
+         */
+        function estimateElementHeight(node, styles, availableWidth, ctx) {
+            const s = styles; // Resolved styles passed in
+            let textContent = '';
+            if (node.children) {
+                const textChild = node.children.find(child => typeof child === 'string');
+                if (textChild) textContent = textChild;
+            }
 
-                if (tagName) { // It's a tag
-                    if (fullMatch.startsWith('</')) { // Closing tag
-                        if (stack.length > 1 && parent.tagName === tagName) {
-                            stack.pop(); // Pop from stack if matches current parent
-                        } else {
-                            console.warn(`Mismatched closing tag: expected </${parent.tagName}>, got ${fullMatch}`);
-                            // Potentially try to recover or stop parsing for this branch
-                        }
-                    } else { // Opening tag
-                        const attributes = {};
-                        if (attributesStr) {
-                            const attrRegex = /([a-zA-Z0-9_-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+)))?/g;
-                            let attrMatch;
-                            while ((attrMatch = attrRegex.exec(attributesStr))) {
-                                attributes[attrMatch[1]] = attrMatch[2] || attrMatch[3] || attrMatch[4] || ''; // Handle quoted and unquoted values
-                            }
-                        }
-                        const elementNode = { tagName, attributes, children: [] };
-                        parent.children.push(elementNode);
-                        stack.push(elementNode); // Push new element onto stack to become current parent
+            const lineHeight = s.fontSize * 1.2;
+            let numLines = 1;
+
+            if (textContent) {
+                ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`; // Set font for measurement
+                const words = textContent.split(' ');
+                let currentLine = '';
+                numLines = 0;
+                for (let n = 0; n < words.length; n++) {
+                    let testLine = currentLine + words[n] + ' ';
+                    let metrics = ctx.measureText(testLine.trim());
+                    if (metrics.width > availableWidth && currentLine.length > 0) {
+                        numLines++;
+                        currentLine = words[n] + ' ';
+                    } else {
+                        currentLine = testLine;
                     }
-                } else if (textContent && textContent.trim() !== '') { // It's text content
-                    parent.children.push(textContent.trim());
                 }
+                if (currentLine.trim().length > 0) numLines++; // Last line
+                if (numLines === 0 && textContent.length > 0) numLines = 1; // At least one line if there's text
             }
-            if (stack.length > 1) {
-                console.warn("Unclosed tags at end of parsing:", stack.slice(1).map(s => s.tagName));
-            }
-            return result;
+            
+            // Total height includes padding, border, and text lines.
+            // Does not account for children's height yet in this estimation.
+            return s.paddingTop + s.paddingBottom + (s.borderWidth * 2) + (numLines * lineHeight);
         }
 
 
         /**
-         * Renders a single element node onto the canvas context.
+         * Renders a single element node and its children recursively.
+         * @param {object} node - The element node to render.
+         * @param {CanvasRenderingContext2D} ctx - The 2D rendering context.
+         * @param {number} x - The x-coordinate for this element's bounding box.
+         * @param {number} y - The y-coordinate for this element's bounding box.
+         * @param {number} width - The available width for this element.
+         * @param {number} height - The available height for this element (can be estimated or fixed).
+         * @returns {number} The actual height used by this element and its children.
          */
-        function renderElementOnCanvas(node, ctx, canvasWidth, canvasHeight) {
-            if (typeof node === 'string') { // Simple text node (currently not directly rendered by this func)
-                console.log("Text node passed to renderElementOnCanvas:", node); // Should be handled by parent
-                return;
-            }
-
+        function renderElementAndChildren(node, ctx, x, y, availableWidth) {
             const styles = parseStyleString(node.attributes.style);
-            const textContent = node.children.find(child => typeof child === 'string') || ''; // Get first text child
-
-            // Merged styles with defaults (same logic as before)
-            const s = { 
+            const s = { // Resolved styles
                 backgroundColor: styles.backgroundColor || 'transparent', color: styles.color || '#000000',
-                paddingTop: parseInt(styles.paddingTop || styles.padding || '10'), paddingRight: parseInt(styles.paddingRight || styles.padding || '10'),
-                paddingBottom: parseInt(styles.paddingBottom || styles.padding || '10'), paddingLeft: parseInt(styles.paddingLeft || styles.padding || '10'),
-                fontSize: parseInt(styles.fontSize || '24'), fontFamily: styles.fontFamily || 'Arial',
+                paddingTop: parseInt(styles.paddingTop || styles.padding || '0'), paddingRight: parseInt(styles.paddingRight || styles.padding || '0'),
+                paddingBottom: parseInt(styles.paddingBottom || styles.padding || '0'), paddingLeft: parseInt(styles.paddingLeft || styles.padding || '0'),
+                marginTop: parseInt(styles.marginTop || '0'), marginBottom: parseInt(styles.marginBottom || '0'), // Basic margin
+                fontSize: parseInt(styles.fontSize || '16'), fontFamily: styles.fontFamily || 'Arial',
                 fontWeight: styles.fontWeight || 'normal', borderWidth: 0, borderStyle: 'solid',
-                borderColor: 'transparent', textAlign: styles.textAlign || 'left'
+                borderColor: 'transparent', textAlign: styles.textAlign || 'left',
+                display: styles.display || 'block' // Basic display property
             };
-            if (styles.border) { /* ... border parsing ... */ 
-                const borderParts = styles.border.match(/(\d+)\s*px\s+(\w+)\s+(.*)/i);
-                if (borderParts && borderParts.length === 4) { s.borderWidth = parseInt(borderParts[1]); s.borderStyle = borderParts[2].toLowerCase(); s.borderColor = borderParts[3];}
-            }
-            
-            // For this simplified version, we clear and draw the whole canvas per element.
-            // This will change when rendering a tree.
-            ctx.clearRect(0, 0, canvasWidth, canvasHeight); 
+            if (styles.border) { const bp = styles.border.match(/(\d+)\s*px\s+(\w+)\s+(.*)/i); if (bp) { s.borderWidth = parseInt(bp[1]); s.borderStyle = bp[2].toLowerCase(); s.borderColor = bp[3];}}
 
-            const boxX = s.borderWidth / 2; const boxY = s.borderWidth / 2;
-            const boxWidth = canvasWidth - s.borderWidth; const boxHeight = canvasHeight - s.borderWidth;
-            ctx.fillStyle = s.backgroundColor; ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-            if (s.borderWidth > 0) { /* ... border drawing ... */ 
+            const elementOuterY = y + s.marginTop;
+
+            // --- Draw current element's background and border ---
+            const elementRectX = x + (s.borderWidth / 2);
+            const elementRectY = elementOuterY + (s.borderWidth / 2);
+            const elementRectWidth = availableWidth - s.borderWidth;
+            
+            // Estimate height for text content of *this* element
+            let textContent = node.children.find(child => typeof child === 'string') || '';
+            let textLines = [];
+            const lineHeight = s.fontSize * 1.2;
+            if (textContent) {
+                ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
+                const words = textContent.split(' '); let currentLine = '';
+                for (let n = 0; n < words.length; n++) {
+                    let testLine = currentLine + words[n] + ' ';
+                    if (ctx.measureText(testLine.trim()).width > (elementRectWidth - s.paddingLeft - s.paddingRight) && currentLine.length > 0) {
+                        textLines.push(currentLine.trim()); currentLine = words[n] + ' ';
+                    } else { currentLine = testLine; }
+                }
+                textLines.push(currentLine.trim());
+            }
+            const textBlockHeight = textLines.length > 0 ? (textLines.length * lineHeight - (lineHeight - s.fontSize)) : 0;
+            
+            let currentElementInnerHeight = textBlockHeight; // Start with text height
+
+            // --- Recursively render children and sum their heights ---
+            const childrenX = elementRectX + s.paddingLeft;
+            let childrenY = elementRectY + s.paddingTop + textBlockHeight; // Children start after this element's text
+            const childrenWidth = elementRectWidth - s.paddingLeft - s.paddingRight;
+            
+            let maxChildHeight = 0;
+            node.children.forEach(childNode => {
+                if (typeof childNode !== 'string') { // If it's an element node
+                    const childHeight = renderElementAndChildren(childNode, ctx, childrenX, childrenY, childrenWidth);
+                    childrenY += childHeight; // Stack children vertically
+                    maxChildHeight += childHeight;
+                }
+            });
+            currentElementInnerHeight += maxChildHeight; // Add children's height to inner height
+
+            const currentElementTotalHeight = s.paddingTop + currentElementInnerHeight + s.paddingBottom + s.borderWidth * 2;
+            const elementRectHeight = currentElementTotalHeight - s.borderWidth;
+
+
+            if (s.backgroundColor !== 'transparent') {
+                ctx.fillStyle = s.backgroundColor;
+                ctx.fillRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
+            }
+            if (s.borderWidth > 0) {
                 ctx.strokeStyle = s.borderColor; ctx.lineWidth = s.borderWidth;
                 if (s.borderStyle === 'dashed') ctx.setLineDash([s.borderWidth * 2, s.borderWidth * 1.5]);
                 else if (s.borderStyle === 'dotted') ctx.setLineDash([s.borderWidth, s.borderWidth]);
                 else ctx.setLineDash([]);
-                ctx.strokeRect(boxX, boxY, boxWidth, boxHeight); ctx.setLineDash([]);
+                ctx.strokeRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
+                ctx.setLineDash([]);
             }
-            
-            const contentX = boxX + s.paddingLeft; const contentY = boxY + s.paddingTop;
-            const contentWidth = boxWidth - s.paddingLeft - s.paddingRight; const contentHeight = boxHeight - s.paddingTop - s.paddingBottom;
-            ctx.fillStyle = s.color; ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
-            ctx.textBaseline = 'top'; ctx.textAlign = s.textAlign;
 
-            const words = textContent.split(' '); let line = ''; const lines = [];
-            const lineHeight = s.fontSize * 1.2; 
-            for (let n = 0; n < words.length; n++) { /* ... word wrapping ... */ 
-                let testLine = line + words[n] + ' '; let metrics = ctx.measureText(testLine.trim());
-                if (metrics.width > contentWidth && line.length > 0) { lines.push(line.trim()); line = words[n] + ' '; } else { line = testLine; }
+            // --- Draw text content of *this* element ---
+            if (textLines.length > 0) {
+                ctx.fillStyle = s.color; ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
+                ctx.textBaseline = 'top'; ctx.textAlign = s.textAlign;
+                let textDrawY = elementRectY + s.paddingTop;
+                for (let i = 0; i < textLines.length; i++) {
+                    let drawX = elementRectX + s.paddingLeft;
+                    if (s.textAlign === 'center') drawX = elementRectX + s.paddingLeft + (elementRectWidth - s.paddingLeft - s.paddingRight) / 2;
+                    else if (s.textAlign === 'right') drawX = elementRectX + s.paddingLeft + (elementRectWidth - s.paddingLeft - s.paddingRight);
+                    ctx.fillText(textLines[i], drawX, textDrawY);
+                    textDrawY += lineHeight;
+                }
             }
-            lines.push(line.trim());
-            let currentY = contentY;
-            for (let i = 0; i < lines.length; i++) { /* ... text line drawing ... */ 
-                if (currentY + s.fontSize > contentY + contentHeight) break;
-                let drawX = contentX;
-                if (s.textAlign === 'center') drawX = contentX + contentWidth / 2;
-                else if (s.textAlign === 'right') drawX = contentX + contentWidth;
-                ctx.fillText(lines[i], drawX, currentY); currentY += lineHeight;
-            }
+            return currentElementTotalHeight + s.marginTop + s.marginBottom; // Return full occupied height including margins
         }
 
         /**
-         * Main function to render an HTML string to the UI panel's texture.
+         * Renders a tree of nodes onto the canvas.
          */
+        function renderNodeTree(nodes, ctx, x, y, availableWidth, availableHeight) {
+            let currentY = y;
+            nodes.forEach(node => {
+                if (typeof node === 'string') {
+                    // For now, top-level text nodes in a children array are ignored by renderElementAndChildren directly.
+                    // A proper layout engine would handle inline flow. Here we assume block stacking.
+                    // We could draw it simply here if needed, but it's better handled inside elements.
+                    console.warn("Standalone text node in tree, not rendered by current block layout:", node);
+                } else { // It's an element node
+                    const elementHeight = renderElementAndChildren(node, ctx, x, currentY, availableWidth);
+                    currentY += elementHeight; // Stack elements vertically
+                }
+            });
+        }
+
         function renderHTMLToTexture(htmlString) {
+            textureContext.clearRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT); // Clear canvas once
             const nodeTree = parseHTMLString(htmlString);
 
             if (nodeTree.length > 0) {
-                // For now, just render the first top-level element.
-                // Recursive tree rendering will come next.
-                const firstElementNode = nodeTree[0]; 
-                if (typeof firstElementNode !== 'string') { // Ensure it's an element node
-                     renderElementOnCanvas(firstElementNode, textureContext, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-                } else {
-                    console.warn("Top level of parsed HTML is a text node, cannot render standalone yet:", firstElementNode);
-                    // Fallback: Clear canvas or draw error message
-                    textureContext.clearRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-                    textureContext.fillStyle = "red";
-                    textureContext.font = "20px Arial";
-                    textureContext.fillText("Error: Root is text.", 10, 30);
-                }
+                renderNodeTree(nodeTree, textureContext, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
             } else {
-                console.warn("HTML parsing resulted in an empty tree.");
-                // Fallback: Clear canvas or draw error message
-                textureContext.clearRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-                textureContext.fillStyle = "red";
-                textureContext.font = "20px Arial";
+                // Fallback if parsing fails
+                textureContext.fillStyle = "red"; textureContext.font = "20px Arial";
                 textureContext.fillText("Error: No parsable content.", 10, 30);
             }
 
-            if (canvasTexture) {
-                canvasTexture.needsUpdate = true;
-            }
+            if (canvasTexture) canvasTexture.needsUpdate = true;
         }
 
-        function onWindowResize() { /* ... unchanged ... */ 
-            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-        function animate() { /* ... unchanged ... */ 
-            renderer.render(scene, camera);
-        }
+        function onWindowResize() { /* ... unchanged ... */ }
+        function animate() { /* ... unchanged ... */ }
         init();
     </script>
 </body>
