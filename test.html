@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>XR-UI</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; color: #fff; font-family: Arial, sans-serif; }
+        #webglCanvas { display: block; width: 100vw; height: 100vh; }
+        #vrButton {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border: 1px solid #fff; background: rgba(0,0,0,0.5);
+            color: #fff; font-size: 16px; cursor: pointer; z-index: 1000; opacity: 0.9;
+        }
+        #vrButton:hover { background: rgba(255,255,255,0.2); opacity: 1.0; }
+    </style>
+</head>
+<body>
+    <canvas id="webglCanvas"></canvas>
+    <button id="vrButton">ENTER VR</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        // VRButton.js
+        class VRButton {
+            static createButton( renderer, options ) {
+                if ( options && options.referenceSpaceType ) { renderer.xr.setReferenceSpaceType( options.referenceSpaceType ); }
+                const button = document.getElementById('vrButton'); 
+                let currentSession = null;
+                function onSessionStarted( session ) { session.addEventListener( 'end', onSessionEnded ); renderer.xr.setSession( session ); button.textContent = 'EXIT VR'; currentSession = session; }
+                function onSessionEnded() { if (currentSession) { currentSession.removeEventListener( 'end', onSessionEnded ); } button.textContent = 'ENTER VR'; currentSession = null; }
+                button.style.display = 'none';
+                function showEnterVR( _button ) { _button.style.display = ''; _button.style.cursor = 'pointer'; _button.onclick = function () { if ( currentSession === null ) { const sessionInit = { optionalFeatures: [ 'local-floor', 'bounded-floor', 'hand-tracking', 'layers' ] }; navigator.xr.requestSession( 'immersive-vr', sessionInit ).then( onSessionStarted ); } else { currentSession.end(); } }; }
+                function disableButton( _button ) { _button.style.display = ''; _button.style.cursor = 'auto'; _button.onclick = null; }
+                function showWebXRNotFound( _button ) { disableButton( _button ); _button.textContent = 'VR NOT SUPPORTED'; }
+                if ( 'xr' in navigator ) { navigator.xr.isSessionSupported( 'immersive-vr' ).then( function ( supported ) { supported ? showEnterVR( button ) : showWebXRNotFound( button ); if ( options && options.onSessionSupported ) options.onSessionSupported( supported ); } ).catch( function () { showWebXRNotFound( button ); if ( options && options.onSessionSupported ) options.onSessionSupported( false ); } ); return button;
+                } else { const message = document.createElement( 'a' ); message.innerHTML = window.isSecureContext === false ? 'WEBXR NEEDS HTTPS' : 'WEBXR NOT AVAILABLE'; if (window.isSecureContext === false) message.href = document.location.href.replace( /^http:/, 'https:' ); else message.href = 'https://immersiveweb.dev/'; message.style.textDecoration = 'none'; message.style.color = '#fff'; message.style.display = 'block'; message.style.textAlign = 'center'; button.parentNode.replaceChild(message, button); return message; }
+            }
+        }
+    </script>
+
+    <script>
+        // XR-UI Core Logic
+        let camera, scene, renderer;
+        let planeMesh;
+        let canvasTexture, textureContext;
+
+        const PANEL_ASPECT_RATIO = 16 / 9;
+        const PLANE_BASE_WIDTH = 1.6; 
+        const PLANE_HEIGHT = PLANE_BASE_WIDTH / PANEL_ASPECT_RATIO;
+        const TEXTURE_BASE_HEIGHT = 540; 
+        const TEXTURE_WIDTH = Math.round(TEXTURE_BASE_HEIGHT * PANEL_ASPECT_RATIO);
+        const TEXTURE_HEIGHT = TEXTURE_BASE_HEIGHT;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, PLANE_BASE_WIDTH * 0.9);
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('webglCanvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.xr.enabled = true;
+            VRButton.createButton(renderer);
+
+            const offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = TEXTURE_WIDTH;
+            offscreenCanvas.height = TEXTURE_HEIGHT;
+            textureContext = offscreenCanvas.getContext('2d');
+            // console.log(`Offscreen canvas created: ${TEXTURE_WIDTH}x${TEXTURE_HEIGHT}`);
+
+            const initialHtml = 
+                `<div id="root" style="background-color: #181818; color: #E0E0E0; padding: 10px; font-family: 'Segoe UI', Tahoma; font-size: 20px; border: 1px solid #444;">
+                    <div id="header" style="background-color: #282828; color: #00FF00; padding: 15px; margin-bottom: 10px; border: 2px dashed #00AA00; font-weight: bold; text-align: center;">
+                        XR-UI Header
+                    </div>
+                    <p id="para1" style="color: #CCCCCC; margin-bottom: 8px; font-size: 18px; padding: 5px;">
+                        This is the first paragraph. Nested elements should render! 
+                        Let's add more text to make this paragraph wrap over multiple lines to test vertical spacing and height calculations more thoroughly.
+                    </p>
+                    <div id="content" style="background-color: #202020; padding: 10px; margin-bottom:10px; border-left: 3px solid #5555FF;">
+                        <span id="span1" style="color: #88CCFF; font-style: italic; font-size: 16px;">A span in a div. (Still block)</span>
+                        <p id="para2" style="color: #FFDD88; margin-top: 5px; font-size: 16px; padding: 3px;">Nested paragraph here. Longer to test wrap, and a little bit more to ensure it really does. It should have its own background if we set one.</p>
+                    </div>
+                    <div id="footer" style="margin-top: 15px; padding: 8px; border-top: 1px solid #333; font-size: 14px; text-align: right; color: #888; background-color: #222;">
+                        Footer Text - Check if this is clipped.
+                    </div>
+                </div>`;
+            renderHTMLToTexture(initialHtml);
+
+            canvasTexture = new THREE.CanvasTexture(offscreenCanvas);
+            const planeGeometry = new THREE.PlaneGeometry(PLANE_BASE_WIDTH, PLANE_HEIGHT);
+            const planeMaterial = new THREE.MeshBasicMaterial({ map: canvasTexture, side: THREE.DoubleSide, transparent: true });
+            planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+            scene.add(planeMesh);
+
+            window.addEventListener('resize', onWindowResize, false);
+            renderer.setAnimationLoop(animate);
+        }
+
+        function parseStyleString(styleStr) {
+            const styles = {}; if (!styleStr) return styles;
+            styleStr.split(';').forEach(declaration => {
+                if (declaration.trim() === '') return; 
+                const [property, value] = declaration.split(':').map(s => s.trim());
+                if (property && value) { 
+                    const camelCaseProperty = property.replace(/-([a-z])/g, g => g[1].toUpperCase()); 
+                    styles[camelCaseProperty] = value; 
+                }
+            }); 
+            return styles;
+        }
+        
+        function parseHTMLString(htmlString) {
+            const result = []; 
+            const stack = [{ children: result }];
+            let match;
+            const tagRegex = /<\/?([a-z][a-z0-9]*)\s*([^>]*?)?>|([^<]+)/gi;
+            while ((match = tagRegex.exec(htmlString))) {
+                const [fullMatch, tagName, attributesStr, textContent] = match;
+                const parent = stack[stack.length - 1];
+                if (tagName) {
+                    if (fullMatch.startsWith('</')) { 
+                        if (stack.length > 1 && parent.tagName === tagName) { stack.pop(); } 
+                        else { console.warn(`Mismatched closing tag: expected </${parent.tagName || 'unknown'}>, got ${fullMatch}`); }
+                    } else { 
+                        const attributes = {}; 
+                        if (attributesStr) {
+                            const attrRegex = /([a-zA-Z0-9_-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+)))?/g;
+                            let attrMatch; 
+                            while ((attrMatch = attrRegex.exec(attributesStr))) { attributes[attrMatch[1]] = attrMatch[2] || attrMatch[3] || attrMatch[4] || ''; }
+                        }
+                        const elementNode = { tagName, attributes, children: [] }; 
+                        parent.children.push(elementNode); 
+                        stack.push(elementNode); 
+                    }
+                } else if (textContent && textContent.trim() !== '') { 
+                    parent.children.push(textContent.trim()); 
+                }
+            }
+            if (stack.length > 1) { console.warn("Unclosed tags at end of parsing:", stack.slice(1).map(s => s.tagName)); }
+            return result;
+        }
+
+        function renderElementAndChildren(node, ctx, x, y, availableWidth) {
+            const id = node.attributes.id || 'NO_ID';
+            // console.log(`[RenderStart] <${node.tagName} id="${id}"> at y:${y.toFixed(1)}, availableWidth:${availableWidth.toFixed(1)}`);
+            
+            const styles = parseStyleString(node.attributes.style);
+            const s = { 
+                backgroundColor: styles.backgroundColor || 'transparent', color: styles.color || '#000000',
+                paddingTop: parseInt(styles.paddingTop || styles.padding || '0'), 
+                paddingRight: parseInt(styles.paddingRight || styles.padding || '0'),
+                paddingBottom: parseInt(styles.paddingBottom || styles.padding || '0'), 
+                paddingLeft: parseInt(styles.paddingLeft || styles.padding || '0'),
+                marginTop: parseInt(styles.marginTop || '0'), 
+                marginBottom: parseInt(styles.marginBottom || '0'),
+                fontSize: parseInt(styles.fontSize || '16'), 
+                fontFamily: styles.fontFamily || 'Arial',
+                fontWeight: styles.fontWeight || 'normal', 
+                borderWidth: 0, borderStyle: 'solid', borderColor: 'transparent', 
+                textAlign: styles.textAlign || 'left',
+                display: styles.display || 'block' // Currently all display as block
+            };
+            if (styles.border) { 
+                const bp = styles.border.match(/(\d+)\s*px\s+(\w+)\s+(.*)/i); 
+                if (bp) { s.borderWidth = parseInt(bp[1]); s.borderStyle = bp[2].toLowerCase(); s.borderColor = bp[3];}
+            }
+
+            const elementOuterY = y + s.marginTop; // Top of the margin box
+            const elementRectX = x + (s.borderWidth / 2); // Center of left border
+            const elementRectY = elementOuterY + (s.borderWidth / 2); // Center of top border (top of fill box)
+            const elementRectWidth = availableWidth - s.borderWidth; // Width available for fill box
+            
+            let textContent = '';
+            const textChildrenOfThisNode = node.children.filter(child => typeof child === 'string');
+            if (textChildrenOfThisNode.length > 0) textContent = textChildrenOfThisNode.join(' ');
+            
+            let textLines = [];
+            // Adjusted lineHeight for better spacing
+            const lineHeight = Math.round(s.fontSize * 1.35); // Increased for better visual spacing
+            
+            if (textContent) {
+                ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
+                const words = textContent.split(' '); 
+                let currentLine = '';
+                // Width available for text is inside padding
+                const contentAreaForTextWidth = Math.max(1, elementRectWidth - s.paddingLeft - s.paddingRight);
+                for (let n = 0; n < words.length; n++) {
+                    let testLine = currentLine + words[n] + ' ';
+                    if (ctx.measureText(testLine.trim()).width > contentAreaForTextWidth && currentLine.length > 0) {
+                        textLines.push(currentLine.trim()); 
+                        currentLine = words[n] + ' ';
+                    } else { 
+                        currentLine = testLine; 
+                    }
+                }
+                if (currentLine.trim().length > 0) textLines.push(currentLine.trim());
+            }
+            // Height of the text block itself
+            const textBlockHeight = textLines.length > 0 ? textLines.length * lineHeight : 0;
+            // console.log(`  [TextCalc] <${node.tagName} id="${id}"> Text: "${textContent.substring(0,20)}...", Lines: ${textLines.length}, TextH: ${textBlockHeight.toFixed(1)}, LineH: ${lineHeight}`);
+            
+            // This element's own content height (text + vertical padding)
+            const ownContentBoxHeight = s.paddingTop + textBlockHeight + s.paddingBottom;
+            
+            // --- Recursively render children to determine their total height ---
+            const childrenContentBoxX = elementRectX + s.paddingLeft;
+            // Children start Y position is after this element's top padding and its own text block
+            let childrenStartRelativeY = s.paddingTop + textBlockHeight;
+            let childrenCurrentYOffset = 0; // Y offset for children, relative to top of this element's content box
+
+            const childrenAvailableWidth = Math.max(1, elementRectWidth - s.paddingLeft - s.paddingRight);
+            let accumulatedChildrenHeight = 0;
+
+            node.children.forEach(childNode => {
+                if (typeof childNode !== 'string') { // Element node
+                    const childDrawingY = elementRectY + childrenStartRelativeY + childrenCurrentYOffset;
+                    // console.log(`    [ChildCall] <${node.tagName} id="${id}"> -> <${childNode.tagName} id="${childNode.attributes.id || 'NO_ID'}"> at childDrawY: ${childDrawingY.toFixed(1)}`);
+                    const childTotalOccupiedHeight = renderElementAndChildren(childNode, ctx, childrenContentBoxX, childDrawingY, childrenAvailableWidth);
+                    // console.log(`    [ChildReturn] <${node.tagName} id="${id}"> <- <${childNode.tagName} id="${childNode.attributes.id || 'NO_ID'}"> reported height: ${childTotalOccupiedHeight.toFixed(1)}`);
+                    childrenCurrentYOffset += childTotalOccupiedHeight; 
+                    accumulatedChildrenHeight += childTotalOccupiedHeight;
+                }
+            });
+            
+            // The total inner height of this element is its own content + children's content
+            const totalInnerHeight = ownContentBoxHeight + accumulatedChildrenHeight; // This was the missing link for own background
+                                                                                   // Corrected: ownContentBoxHeight already includes own text height
+                                                                                   // It should be: s.paddingTop + textBlockHeight + accumulatedChildrenHeight + s.paddingBottom
+            const finalInnerHeight = s.paddingTop + textBlockHeight + accumulatedChildrenHeight + s.paddingBottom;
+            const elementBoxHeight = finalInnerHeight; // Height for this element's own fill/border box
+
+            // console.log(`  [HeightCalc] <${node.tagName} id="${id}"> OwnTextH: ${textBlockHeight.toFixed(1)}, ChildrenTotalH: ${accumulatedChildrenHeight.toFixed(1)}, FinalInnerH: ${finalInnerHeight.toFixed(1)}, ElementBoxH: ${elementBoxHeight.toFixed(1)}`);
+
+            // --- DRAW THIS ELEMENT'S BACKGROUND & BORDER ---
+            if (s.backgroundColor !== 'transparent') {
+                ctx.fillStyle = s.backgroundColor;
+                ctx.fillRect(elementRectX, elementRectY, elementRectWidth, elementBoxHeight);
+            }
+            if (s.borderWidth > 0) {
+                ctx.strokeStyle = s.borderColor; ctx.lineWidth = s.borderWidth;
+                if (s.borderStyle === 'dashed') ctx.setLineDash([s.borderWidth * 2, s.borderWidth * 1.5]);
+                else if (s.borderStyle === 'dotted') ctx.setLineDash([s.borderWidth, s.borderWidth]);
+                else ctx.setLineDash([]);
+                ctx.strokeRect(elementRectX, elementRectY, elementRectWidth, elementBoxHeight);
+                ctx.setLineDash([]);
+            }
+
+            // --- DRAW THIS ELEMENT'S TEXT ---
+            if (textLines.length > 0) {
+                ctx.fillStyle = s.color; ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
+                ctx.textBaseline = 'top'; ctx.textAlign = s.textAlign;
+                // Text starts at the top of this element's padding box
+                let textDrawY = elementRectY + s.paddingTop; 
+                const textContentBoxBottom = elementRectY + s.paddingTop + textBlockHeight;
+
+                for (let i = 0; i < textLines.length; i++) {
+                    let drawX = elementRectX + s.paddingLeft;
+                    if (s.textAlign === 'center') drawX = elementRectX + s.paddingLeft + (childrenAvailableWidth / 2); 
+                    else if (s.textAlign === 'right') drawX = elementRectX + s.paddingLeft + childrenAvailableWidth;
+                    
+                    // Check if the baseline of this text line is within its allocated textBlockHeight
+                    if (textDrawY < textContentBoxBottom) {
+                         ctx.fillText(textLines[i], drawX, textDrawY);
+                    } else {
+                        // console.warn(`Own text "${textLines[i]}" clipped for <${node.tagName} id="${id}">. textDrawY: ${textDrawY}, textContentBoxBottom: ${textContentBoxBottom}`);
+                    }
+                    textDrawY += lineHeight;
+                }
+            }
+            
+            // The total height this element occupies on the canvas, including its border and margins
+            const totalOccupiedHeight = s.borderWidth * 2 + elementBoxHeight + s.marginTop + s.marginBottom;
+            // console.log(`[RenderEnd] <${node.tagName} id="${id}"> Returning total occupied height: ${totalOccupiedHeight.toFixed(1)}`);
+            return totalOccupiedHeight;
+        }
+
+        function renderNodeTree(nodes, ctx, x, y, availableWidth, availableHeight) {
+            let currentY = y; 
+            nodes.forEach(node => {
+                if (typeof node === 'string') { /* Ignore for block layout */ } 
+                else {
+                    // console.log(`renderNodeTree processing <${node.tagName} id="${node.attributes.id || 'NO_ID'}"> at y: ${currentY.toFixed(1)}`);
+                    const elementTotalHeight = renderElementAndChildren(node, ctx, x, currentY, availableWidth);
+                    currentY += elementTotalHeight; 
+                }
+            });
+        }
+
+        function renderHTMLToTexture(htmlString) {
+            // console.log(`--- Rendering HTML to Texture (${TEXTURE_WIDTH}x${TEXTURE_HEIGHT}) ---`);
+            textureContext.clearRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+            const nodeTree = parseHTMLString(htmlString);
+            // console.log("Parsed Node Tree:", JSON.stringify(nodeTree, null, 2)); // Very verbose
+
+            if (nodeTree.length > 0) {
+                renderNodeTree(nodeTree, textureContext, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+            } else { /* ... error handling ... */ }
+            // console.log("--- Finished Rendering HTML to Texture ---");
+            if (canvasTexture) canvasTexture.needsUpdate = true;
+        }
+
+        function onWindowResize() { /* ... */ }
+        function animate() { renderer.render(scene, camera); }
+        
+        init();
+    </script>
+</body>
+</html>
