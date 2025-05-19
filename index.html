@@ -3,23 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>XRterm M2.2 - 16:9 Aspect Ratio</title>
+    <title>XRterm M2.3 - CSS Parser & Element Render</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #111; color: #fff; font-family: Arial, sans-serif; }
         #webglCanvas { display: block; width: 100vw; height: 100vh; }
-        #vrButton {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 24px;
-            border: 1px solid #fff;
-            background: rgba(0,0,0,0.5);
-            color: #fff;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 1000;
-            opacity: 0.9;
+        #vrButton { /* ... styles as before ... */ 
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border: 1px solid #fff; background: rgba(0,0,0,0.5);
+            color: #fff; font-size: 16px; cursor: pointer; z-index: 1000; opacity: 0.9;
         }
         #vrButton:hover { background: rgba(255,255,255,0.2); opacity: 1.0; }
     </style>
@@ -31,85 +22,40 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <script>
-        // VRButton.js (Standard logic)
-        class VRButton {
+        // VRButton.js (Standard logic - unchanged)
+        class VRButton { /* ... same as previous version ... */ 
             static createButton( renderer, options ) {
-                if ( options && options.referenceSpaceType ) {
-                    renderer.xr.setReferenceSpaceType( options.referenceSpaceType );
-                }
-                const button = document.getElementById('vrButton');
-                let currentSession = null;
-
-                function onSessionStarted( session ) {
-                    session.addEventListener( 'end', onSessionEnded );
-                    renderer.xr.setSession( session );
-                    button.textContent = 'EXIT VR';
-                    currentSession = session;
-                }
-                function onSessionEnded() {
-                    if (currentSession) {
-                        currentSession.removeEventListener( 'end', onSessionEnded );
-                    }
-                    button.textContent = 'ENTER VR';
-                    currentSession = null;
-                }
+                if ( options && options.referenceSpaceType ) { renderer.xr.setReferenceSpaceType( options.referenceSpaceType ); }
+                const button = document.getElementById('vrButton'); let currentSession = null;
+                function onSessionStarted( session ) { session.addEventListener( 'end', onSessionEnded ); renderer.xr.setSession( session ); button.textContent = 'EXIT VR'; currentSession = session; }
+                function onSessionEnded() { if (currentSession) { currentSession.removeEventListener( 'end', onSessionEnded ); } button.textContent = 'ENTER VR'; currentSession = null; }
                 button.style.display = 'none';
-                function showEnterVR( _button ) {
-                    _button.style.display = ''; _button.style.cursor = 'pointer';
-                    _button.onclick = function () {
-                        if ( currentSession === null ) {
-                            const sessionInit = { optionalFeatures: [ 'local-floor', 'bounded-floor', 'hand-tracking', 'layers' ] };
-                            navigator.xr.requestSession( 'immersive-vr', sessionInit ).then( onSessionStarted );
-                        } else { currentSession.end(); }
-                    };
-                }
+                function showEnterVR( _button ) { _button.style.display = ''; _button.style.cursor = 'pointer'; _button.onclick = function () { if ( currentSession === null ) { const sessionInit = { optionalFeatures: [ 'local-floor', 'bounded-floor', 'hand-tracking', 'layers' ] }; navigator.xr.requestSession( 'immersive-vr', sessionInit ).then( onSessionStarted ); } else { currentSession.end(); } }; }
                 function disableButton( _button ) { _button.style.display = ''; _button.style.cursor = 'auto'; _button.onclick = null; }
                 function showWebXRNotFound( _button ) { disableButton( _button ); _button.textContent = 'VR NOT SUPPORTED'; }
-                
-                if ( 'xr' in navigator ) {
-                    navigator.xr.isSessionSupported( 'immersive-vr' ).then( function ( supported ) {
-                        supported ? showEnterVR( button ) : showWebXRNotFound( button );
-                        if ( options && options.onSessionSupported ) options.onSessionSupported( supported );
-                    } ).catch( function () {
-                        showWebXRNotFound( button );
-                        if ( options && options.onSessionSupported ) options.onSessionSupported( false );
-                    } );
-                    return button;
-                } else { /* ... Message for no WebXR ... */ 
-                    const message = document.createElement( 'a' );
-                    message.innerHTML = window.isSecureContext === false ? 'WEBXR NEEDS HTTPS' : 'WEBXR NOT AVAILABLE';
-                    if (window.isSecureContext === false) message.href = document.location.href.replace( /^http:/, 'https:' );
-                    else message.href = 'https://immersiveweb.dev/';
-                    message.style.textDecoration = 'none'; message.style.color = '#fff'; message.style.display = 'block'; message.style.textAlign = 'center';
-                    button.parentNode.replaceChild(message, button);
-                    return message;
-                }
+                if ( 'xr' in navigator ) { navigator.xr.isSessionSupported( 'immersive-vr' ).then( function ( supported ) { supported ? showEnterVR( button ) : showWebXRNotFound( button ); if ( options && options.onSessionSupported ) options.onSessionSupported( supported ); } ).catch( function () { showWebXRNotFound( button ); if ( options && options.onSessionSupported ) options.onSessionSupported( false ); } ); return button;
+                } else { const message = document.createElement( 'a' ); message.innerHTML = window.isSecureContext === false ? 'WEBXR NEEDS HTTPS' : 'WEBXR NOT AVAILABLE'; if (window.isSecureContext === false) message.href = document.location.href.replace( /^http:/, 'https:' ); else message.href = 'https://immersiveweb.dev/'; message.style.textDecoration = 'none'; message.style.color = '#fff'; message.style.display = 'block'; message.style.textAlign = 'center'; button.parentNode.replaceChild(message, button); return message; }
             }
         }
     </script>
 
     <script>
-        // XRterm M2.2 JavaScript
+        // XRterm M2.3 JavaScript
         let camera, scene, renderer;
         let planeMesh;
         let canvasTexture, textureContext;
 
-        // --- Configuration for Aspect Ratio ---
         const PANEL_ASPECT_RATIO = 16 / 9;
-        const PLANE_BASE_WIDTH = 1.6; // Width of the plane in 3D units
+        const PLANE_BASE_WIDTH = 1.6; 
         const PLANE_HEIGHT = PLANE_BASE_WIDTH / PANEL_ASPECT_RATIO;
-
-        const TEXTURE_BASE_HEIGHT = 540; // Height of the offscreen canvas in pixels
+        const TEXTURE_BASE_HEIGHT = 540; 
         const TEXTURE_WIDTH = Math.round(TEXTURE_BASE_HEIGHT * PANEL_ASPECT_RATIO);
         const TEXTURE_HEIGHT = TEXTURE_BASE_HEIGHT;
 
-
-        function init() {
+        function init() { /* ... Three.js scene setup, camera, renderer, WebXR as before ... */ 
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            // Adjust camera Z based on new plane size for a decent initial view
-            camera.position.set(0, 0, PLANE_BASE_WIDTH * 0.9); // Heuristic, adjust as needed
-
+            camera.position.set(0, 0, PLANE_BASE_WIDTH * 0.9);
             renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('webglCanvas'), antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
@@ -121,19 +67,13 @@
             offscreenCanvas.height = TEXTURE_HEIGHT;
             textureContext = offscreenCanvas.getContext('2d');
 
-            const initialHtml = `<div style="background-color: #2a2a5a; color: #aaccaa; padding: 20px; font-size: 40px; font-family: monospace; border: 5px solid #558855; text-align: center;">XRterm 16:9 Panel</div>`;
+            // Test with a slightly more complex style string
+            const initialHtml = `<div style="background-color: #333; color: #0F0; padding: 25px; font-size: 38px; font-family: 'Lucida Console', Monaco, monospace; border: 6px dashed #0A0; text-align: left; font-weight: bold;">M2.3: Styles!</div>`;
             renderHTMLToTexture(initialHtml);
 
             canvasTexture = new THREE.CanvasTexture(offscreenCanvas);
-            // canvasTexture.minFilter = THREE.LinearFilter; 
-            // canvasTexture.magFilter = THREE.LinearFilter;
-
             const planeGeometry = new THREE.PlaneGeometry(PLANE_BASE_WIDTH, PLANE_HEIGHT);
-            const planeMaterial = new THREE.MeshBasicMaterial({
-                map: canvasTexture,
-                side: THREE.DoubleSide,
-                transparent: true
-            });
+            const planeMaterial = new THREE.MeshBasicMaterial({ map: canvasTexture, side: THREE.DoubleSide, transparent: true });
             planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
             scene.add(planeMesh);
 
@@ -141,99 +81,179 @@
             renderer.setAnimationLoop(animate);
 
             setTimeout(() => {
-                const updatedHtml = `<div style="background-color: #663333; color: #FFFFDD; padding: 30px; font-size: 30px; font-family: Courier New; border: 8px solid #AA6666; text-align: center;">Content Updated on 16:9! Text should wrap if long enough to test the crude wrapping logic. More text to see.</div>`;
+                const updatedHtml = `<p style="background-color: #502020; color: #FFD; padding: 15px 30px; font-size: 28px; font-family: Georgia, serif; border: 4px solid #A55; text-align: right; font-weight: normal;">Updated Paragraph with different styles and a bit more text to see how wrapping works. Second line for testing.</p>`;
                 renderHTMLToTexture(updatedHtml);
             }, 5000);
         }
 
-        function renderHTMLToTexture(htmlString) {
-            let styles = {
-                backgroundColor: 'rgba(30, 30, 60, 0.7)', color: 'rgba(200, 255, 255, 1)',
-                padding: 10, fontSize: 24, fontFamily: 'Arial',
-                border: '0px solid #000', textAlign: 'left'
-            };
-            let textContent = 'Error: No Content';
+        /**
+         * Parses a CSS style string into a JavaScript object.
+         * Example: "color: red; font-size: 10px" -> { color: "red", fontSize: "10px" }
+         */
+        function parseStyleString(styleStr) {
+            const styles = {};
+            if (!styleStr) return styles;
 
-            const styleMatch = htmlString.match(/style="([^"]*)"/);
-            if (styleMatch && styleMatch[1]) {
-                styleMatch[1].split(';').forEach(prop => {
-                    const [key, value] = prop.split(':').map(s => s.trim());
-                    if (!value) return;
-                    if (key === 'background-color') styles.backgroundColor = value;
-                    else if (key === 'color') styles.color = value;
-                    else if (key === 'padding') styles.padding = parseInt(value) || styles.padding;
-                    else if (key === 'font-size') styles.fontSize = parseInt(value) || styles.fontSize;
-                    else if (key === 'font-family') styles.fontFamily = value.split(',')[0].trim() || styles.fontFamily;
-                    else if (key === 'border') styles.border = value;
-                    else if (key === 'text-align') styles.textAlign = value;
-                });
-            }
-            const contentMatch = htmlString.match(/>([^<]+)</);
-            if (contentMatch && contentMatch[1]) textContent = contentMatch[1].trim();
-
-            const canvas = textureContext.canvas;
-            textureContext.clearRect(0, 0, canvas.width, canvas.height);
-
-            let borderWidth = 0; let borderColor = styles.backgroundColor;
-            const borderParts = styles.border.match(/(\d+)\s*px\s+\w+\s+(.*)/i);
-            if (borderParts && borderParts.length === 3) { borderWidth = parseInt(borderParts[1]); borderColor = borderParts[2]; }
-            
-            const effX = borderWidth / 2, effY = borderWidth / 2;
-            const effW = canvas.width - borderWidth, effH = canvas.height - borderWidth;
-
-            textureContext.fillStyle = styles.backgroundColor;
-            textureContext.fillRect(effX, effY, effW, effH);
-            if (borderWidth > 0) {
-                textureContext.strokeStyle = borderColor; textureContext.lineWidth = borderWidth;
-                textureContext.strokeRect(effX, effY, effW, effH);
-            }
-            
-            textureContext.fillStyle = styles.color;
-            textureContext.font = `bold ${styles.fontSize}px ${styles.fontFamily}`;
-            textureContext.textBaseline = 'middle'; textureContext.textAlign = styles.textAlign;
-
-            const pad = styles.padding;
-            const cAreaX = effX + pad, cAreaW = effW - (2 * pad);
-            let textX;
-            if (styles.textAlign === 'center') textX = cAreaX + cAreaW / 2;
-            else if (styles.textAlign === 'right') textX = cAreaX + cAreaW;
-            else textX = cAreaX;
-            
-            const lines = [];
-            const words = textContent.split(' ');
-            let currentLine = '';
-            for (let n = 0; n < words.length; n++) {
-                let testLine = currentLine + words[n] + ' ';
-                let metrics = textureContext.measureText(testLine);
-                if (metrics.width > cAreaW && n > 0 && currentLine.length > 0) { // Ensure currentLine is not empty before pushing
-                    lines.push(currentLine.trim());
-                    currentLine = words[n] + ' ';
-                } else {
-                    currentLine = testLine;
+            styleStr.split(';').forEach(declaration => {
+                if (declaration.trim() === '') return;
+                const [property, value] = declaration.split(':').map(s => s.trim());
+                if (property && value) {
+                    // Convert to camelCase for easier JS access, e.g., font-size -> fontSize
+                    const camelCaseProperty = property.replace(/-([a-z])/g, g => g[1].toUpperCase());
+                    styles[camelCaseProperty] = value;
                 }
-            }
-            lines.push(currentLine.trim());
-
-            const lineHeight = styles.fontSize * 1.2;
-            let startY = effY + pad + (effH - 2 * pad - (lines.length -1) * lineHeight) / 2 - (styles.fontSize * 0.1); // Center block vertically
-
-            for(let i = 0; i < lines.length; i++) {
-                textureContext.fillText(lines[i], textX, startY + (i * lineHeight));
-            }
-
-            if (canvasTexture) canvasTexture.needsUpdate = true;
+            });
+            return styles;
         }
 
-        function onWindowResize() {
+        /**
+         * Renders a single "element" (defined by tag, styles, content) to the textureContext.
+         * This is a placeholder for a more proper DOM node rendering.
+         */
+        function renderElementOnCanvas(tagName, styles, textContent, ctx, canvasWidth, canvasHeight) {
+            // --- Apply Default Styles & Parse Values ---
+            const s = { // Merged and parsed styles
+                backgroundColor: styles.backgroundColor || 'transparent',
+                color: styles.color || '#000000',
+                paddingTop: parseInt(styles.paddingTop || styles.padding || styles.paddingLeft || styles.paddingRight || '10'), // More specific padding later
+                paddingRight: parseInt(styles.paddingRight || styles.padding || styles.paddingTop || styles.paddingBottom || '10'),
+                paddingBottom: parseInt(styles.paddingBottom || styles.padding || styles.paddingLeft || styles.paddingRight || '10'),
+                paddingLeft: parseInt(styles.paddingLeft || styles.padding || styles.paddingTop || styles.paddingBottom || '10'),
+                fontSize: parseInt(styles.fontSize || '24'),
+                fontFamily: styles.fontFamily || 'Arial',
+                fontWeight: styles.fontWeight || 'normal', // Added fontWeight
+                borderWidth: 0,
+                borderStyle: 'solid',
+                borderColor: 'transparent',
+                textAlign: styles.textAlign || 'left'
+            };
+
+            // Parse border shorthand: "width style color"
+            if (styles.border) {
+                const borderParts = styles.border.match(/(\d+)\s*px\s+(\w+)\s+(.*)/i);
+                if (borderParts && borderParts.length === 4) {
+                    s.borderWidth = parseInt(borderParts[1]);
+                    s.borderStyle = borderParts[2].toLowerCase(); // e.g., solid, dashed
+                    s.borderColor = borderParts[3];
+                }
+            }
+            
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            // --- Drawing Area Calculations ---
+            const boxX = s.borderWidth / 2;
+            const boxY = s.borderWidth / 2;
+            const boxWidth = canvasWidth - s.borderWidth;
+            const boxHeight = canvasHeight - s.borderWidth;
+
+            // 1. Draw Background
+            ctx.fillStyle = s.backgroundColor;
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+            // 2. Draw Border
+            if (s.borderWidth > 0) {
+                ctx.strokeStyle = s.borderColor;
+                ctx.lineWidth = s.borderWidth;
+                if (s.borderStyle === 'dashed') {
+                    ctx.setLineDash([s.borderWidth * 2, s.borderWidth * 1.5]); // Simple dash pattern
+                } else if (s.borderStyle === 'dotted') {
+                    ctx.setLineDash([s.borderWidth, s.borderWidth]); // Simple dot pattern
+                } else {
+                    ctx.setLineDash([]); // Solid
+                }
+                ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+                ctx.setLineDash([]); // Reset line dash
+            }
+            
+            // --- Content Area (inside padding and border) ---
+            const contentX = boxX + s.paddingLeft;
+            const contentY = boxY + s.paddingTop;
+            const contentWidth = boxWidth - s.paddingLeft - s.paddingRight;
+            const contentHeight = boxHeight - s.paddingTop - s.paddingBottom;
+
+            // 3. Draw Text
+            ctx.fillStyle = s.color;
+            ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`; // Added fontWeight
+            ctx.textBaseline = 'top'; // Easier for multi-line layout
+            ctx.textAlign = s.textAlign;
+
+            // Word Wrapping Logic (improved slightly)
+            const words = textContent.split(' ');
+            let line = '';
+            const lines = [];
+            const lineHeight = s.fontSize * 1.2; // Approximate line height
+
+            for (let n = 0; n < words.length; n++) {
+                let testLine = line + words[n] + ' ';
+                let metrics = ctx.measureText(testLine.trim()); // Measure trimmed line
+                if (metrics.width > contentWidth && line.length > 0) {
+                    lines.push(line.trim());
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line.trim()); // Add the last line
+
+            // Calculate vertical position for the block of text (simple top alignment within content box)
+            let currentY = contentY;
+            
+            // For vertical centering (more complex, basic version here for top alignment)
+            // const totalTextHeight = lines.length * lineHeight;
+            // currentY = contentY + (contentHeight - totalTextHeight) / 2;
+            // if (currentY < contentY) currentY = contentY; // Prevent overflow top
+
+            for (let i = 0; i < lines.length; i++) {
+                if (currentY + lineHeight > contentY + contentHeight + s.fontSize * 0.2) break; // Prevent overflow bottom
+
+                let drawX = contentX;
+                if (s.textAlign === 'center') {
+                    drawX = contentX + contentWidth / 2;
+                } else if (s.textAlign === 'right') {
+                    drawX = contentX + contentWidth;
+                }
+                ctx.fillText(lines[i], drawX, currentY);
+                currentY += lineHeight;
+            }
+        }
+
+
+        function renderHTMLToTexture(htmlString) {
+            // Rudimentary extraction for a SINGLE top-level element
+            // Example: <div style="...">textContent</div>
+            // This will be replaced by a proper tree parser later.
+            let tagName = 'div'; // Default
+            let styleStr = '';
+            let textContent = 'Parse Error';
+
+            // Extract tag name (e.g., "div" from "<div ...>")
+            const tagMatch = htmlString.match(/^<(\w+)/);
+            if (tagMatch) tagName = tagMatch[1];
+
+            // Extract style attribute
+            const styleMatch = htmlString.match(/style="([^"]*)"/);
+            if (styleMatch) styleStr = styleMatch[1];
+
+            // Extract text content (simplistic: content between > and </ for the first tag)
+            const contentMatch = htmlString.match(/>([^<]+)</); 
+            if (contentMatch) textContent = contentMatch[1].trim();
+            
+            const styles = parseStyleString(styleStr);
+            
+            renderElementOnCanvas(tagName, styles, textContent, textureContext, TEXTURE_WIDTH, TEXTURE_HEIGHT);
+
+            if (canvasTexture) {
+                canvasTexture.needsUpdate = true;
+            }
+        }
+
+        function onWindowResize() { /* ... as before ... */ 
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
-
-        function animate() {
-            if (planeMesh && !renderer.xr.isPresenting) {
-                // planeMesh.rotation.y += 0.001; // Keep desktop rotation minimal or remove
-            }
+        function animate() { /* ... as before ... */ 
+            if (planeMesh && !renderer.xr.isPresenting) { /* planeMesh.rotation.y += 0.001; */ }
             renderer.render(scene, camera);
         }
         init();
