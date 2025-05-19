@@ -220,32 +220,18 @@
             const elementRectHeight = currentElementTotalPaddedHeight; 
             // console.log(`  [DrawBox] <${node.tagName} id="${id}"> RectX: ${elementRectX.toFixed(1)}, RectY: ${elementRectY.toFixed(1)}, RectW: ${elementRectWidth.toFixed(1)}, RectH: ${elementRectHeight.toFixed(1)} for background/border`);
 
-
-            // TEMP DEBUG: Force root to draw full height and bright color
-            if (node.attributes.id === 'root') {
-                console.log("!!! FORCING ROOT DRAW !!! Actual calculated RectH for root's background:", elementRectHeight.toFixed(1));
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.3)'; // Bright red semi-transparent
-                ctx.fillRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT); // Fill entire canvas for root's background for test
-
-                // Now draw the calculated root border based on its actual content height
-                if (s.borderWidth > 0) {
-                    ctx.strokeStyle = s.borderColor; ctx.lineWidth = s.borderWidth;
-                    ctx.strokeRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
-                 }
-
-            } else { // Normal drawing for non-root elements
-                 if (s.backgroundColor !== 'transparent') {
-                    ctx.fillStyle = s.backgroundColor;
-                    ctx.fillRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
-                }
-                if (s.borderWidth > 0) {
-                    ctx.strokeStyle = s.borderColor; ctx.lineWidth = s.borderWidth;
-                    if (s.borderStyle === 'dashed') ctx.setLineDash([s.borderWidth * 2, s.borderWidth * 1.5]);
-                    else if (s.borderStyle === 'dotted') ctx.setLineDash([s.borderWidth, s.borderWidth]);
-                    else ctx.setLineDash([]);
-                    ctx.strokeRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
-                    ctx.setLineDash([]);
-                }
+            // Normal drawing path for all elements (forced red fill removed)
+            if (s.backgroundColor !== 'transparent') {
+                ctx.fillStyle = s.backgroundColor;
+                ctx.fillRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
+            }
+            if (s.borderWidth > 0) {
+                ctx.strokeStyle = s.borderColor; ctx.lineWidth = s.borderWidth;
+                if (s.borderStyle === 'dashed') ctx.setLineDash([s.borderWidth * 2, s.borderWidth * 1.5]);
+                else if (s.borderStyle === 'dotted') ctx.setLineDash([s.borderWidth, s.borderWidth]);
+                else ctx.setLineDash([]);
+                ctx.strokeRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
+                ctx.setLineDash([]);
             }
 
             // Draw text content of *this* element
@@ -255,10 +241,10 @@
                 let textDrawY = elementRectY + s.paddingTop;
                 for (let i = 0; i < textLines.length; i++) {
                     let drawX = elementRectX + s.paddingLeft;
-                    if (s.textAlign === 'center') drawX = elementRectX + s.paddingLeft + (childrenAvailableWidth / 2);
+                    if (s.textAlign === 'center') drawX = elementRectX + s.paddingLeft + (childrenAvailableWidth / 2); // Use childrenAvailableWidth for text centering
                     else if (s.textAlign === 'right') drawX = elementRectX + s.paddingLeft + childrenAvailableWidth;
                     
-                    if (textDrawY + s.fontSize <= elementRectY + elementRectHeight - s.paddingBottom + 2) {
+                    if (textDrawY + s.fontSize <= elementRectY + elementRectHeight - s.paddingBottom + 2) { // +2 for minor precision
                          ctx.fillText(textLines[i], drawX, textDrawY);
                     } else {
                         // console.warn(`Text "${textLines[i]}" clipped for <${node.tagName} id="${id}">`);
