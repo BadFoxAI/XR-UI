@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>XRterm M2.1 - Basic HTML to Texture</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; color: #fff; font-family: Arial, sans-serif; }
+        #webglCanvas { display: block; width: 100vw; height: 100vh; }
+        #vrButton {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border: 1px solid #fff;
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 1000;
+            opacity: 0.9; /* Slightly transparent */
+        }
+        #vrButton:hover { background: rgba(255,255,255,0.2); opacity: 1.0; }
+    </style>
+</head>
+<body>
+    <canvas id="webglCanvas"></canvas>
+    <button id="vrButton">ENTER VR</button> <!-- Will be managed by VRButton.js -->
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        // VRButton.js (Taken from Three.js examples, slightly modified for inclusion)
+        // Ensures it uses the #vrButton from HTML if present.
+        class VRButton {
+            static createButton( renderer, options ) {
+                if ( options && options.referenceSpaceType ) {
+                    renderer.xr.setReferenceSpaceType( options.referenceSpaceType );
+                }
+
+                const button = document.getElementById('vrButton'); // Get existing button
+                let currentSession = null;
+
+                function onSessionStarted( session ) {
+                    session.addEventListener( 'end', onSessionEnded );
+                    renderer.xr.setSession( session );
+                    button.textContent = 'EXIT VR';
+                    currentSession = session;
+                }
+                function onSessionEnded() {
+                    if (currentSession) { // Check if session exists before removing listener
+                        currentSession.removeEventListener( 'end', onSessionEnded );
+                    }
+                    button.textContent = 'ENTER VR';
+                    currentSession = null;
+                }
+            
+                button.style.display = 'none'; // Hide initially
+
+                function showEnterVR( _button ) {
+                    _button.style.display = '';
+                    _button.style.cursor = 'pointer';
+                    _button.onmouseenter = function () { _button.style.opacity = '1.0'; };
+                    _button.onmouseleave = function () { _button.style.opacity = '0.9'; };
+                    _button.onclick = function () {
+                        if ( currentSession === null ) {
+                            const sessionInit = { optionalFeatures: [ 'local-floor', 'bounded-floor', 'hand-tracking', 'layers' ] };
+                            navigator.xr.requestSession( 'immersive-vr', sessionInit ).then( onSessionStarted );
+                        } else {
+                            currentSession.end();
+                        }
+                    };
+                }
+
+                function disableButton( _button ) {
+                    _button.style.display = '';
+                    _button.style.cursor = 'auto';
+                    _button.onmouseenter = null;
+                    _button.onmouseleave = null;
+                    _button.onclick = null;
+                }
+
+                function showWebXRNotFound( _button ) {
+                    disableButton( _button );
+                    _button.textContent = 'VR NOT SUPPORTED';
+                }
+                
+                if ( 'xr' in navigator ) {
+                    navigator.xr.isSessionSupported( 'immersive-vr' ).then( function ( supported ) {
+                        supported ? showEnterVR( button ) : showWebXRNotFound( button );
+                        if ( options && options.onSessionSupported ) options.onSessionSupported( supported );
+                    } ).catch( function () {
+                        showWebXRNotFound( button );
+                        if ( options && options.onSessionSupported ) options.onSessionSupported( false );
+                    } );
+                    return button;
+
+                } else {
+                    const message = document.createElement( 'a' );
+                    if ( window.isSecureContext === false ) {
+                        message.href = document.location.href.replace( /^http:/, 'https:' );
+                        message.innerHTML = 'WEBXR NEEDS HTTPS'; 
+                    } else {
+                        message.href = 'https://immersiveweb.dev/';
+                        message.innerHTML = 'WEBXR NOT AVAILABLE';
+                    }
+                    message.style.textDecoration = 'none';
+                    message.style.color = '#fff';
+                    message.style.display = 'block';
+                    message.style.textAlign = 'center';
+                    
+                    button.parentNode.replaceChild(message, button); // Replace button with message
+                    return message;
+                }
+            }
+        }
+    </script>
+
+    <script>
+        // XRterm M2.1 JavaScript
+        let camera, scene, renderer;
+        let planeMesh;
+        let canvasTexture, textureContext; // For our dynamic texture
+
+        function init() {
+            // --- Basic Three.js Scene Setup ---
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 1.5); // Adjusted camera Z for better view of 1x1 plane
+
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('webglCanvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // --- WebXR Setup ---
+            renderer.xr.enabled = true;
+            VRButton.createButton(renderer); // Initialize the VR button
+
+            // --- Create Dynamic Canvas Texture ---
+            const offscreenCanvas = document.createElement('canvas');
+            const textureSize = 512; // Power of 2 for textures
+            offscreenCanvas.width = textureSize;
+            offscreenCanvas.height = textureSize;
+            textureContext = offscreenCanvas.getContext('2d');
+
+            // Initial call to our new HTML renderer
+            const initialHtml = `<div style="background-color: #2a2a5a; color: #aaccaa; padding: 20px; font-size: 40px; font-family: monospace; border: 5px solid #558855; text-align: center;">XRterm Panel</div>`;
+            renderHTMLToTexture(initialHtml);
+
+            canvasTexture = new THREE.CanvasTexture(offscreenCanvas);
+            // canvasTexture.minFilter = THREE.LinearFilter; // Optional: for smoother texture
+            // canvasTexture.magFilter = THREE.LinearFilter; // Optional
+
+            // --- Create Textured Plane ---
+            const planeGeometry = new THREE.PlaneGeometry(1, 1); // 1x1 unit plane
+            const planeMaterial = new THREE.MeshBasicMaterial({
+                map: canvasTexture,
+                side: THREE.DoubleSide,
+                transparent: true // Important if your canvas texture has alpha
+            });
+            planeMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+            // planeMesh.position.set(0, 0, 0); // Position in front of the camera (0,0,0 in world)
+                                             // For VR, (0,0,-1) relative to camera might be better after session start.
+                                             // For now, world 0,0,0 is fine.
+            scene.add(planeMesh);
+
+            window.addEventListener('resize', onWindowResize, false);
+            renderer.setAnimationLoop(animate); // Use Three.js's XR-compatible loop
+
+            // Example: Update HTML content after a delay
+            setTimeout(() => {
+                const updatedHtml = `<div style="background-color: #663333; color: #FFFFDD; padding: 30px; font-size: 30px; font-family: Courier New; border: 8px solid #AA6666; text-align: center;">Content Updated!</div>`;
+                renderHTMLToTexture(updatedHtml);
+            }, 5000); // Update after 5 seconds
+        }
+
+        function renderHTMLToTexture(htmlString) {
+            // Super-simplified parser for M2.1: Assumes a single div with inline styles.
+            let styles = {
+                backgroundColor: 'rgba(30, 30, 60, 0.7)',
+                color: 'rgba(200, 255, 255, 1)',
+                padding: 10,
+                fontSize: 24,
+                fontFamily: 'Arial',
+                border: '0px solid #000', // Format: "width style color"
+                textAlign: 'left'
+            };
+            let textContent = 'Error: No Content';
+
+            const styleMatch = htmlString.match(/style="([^"]*)"/);
+            if (styleMatch && styleMatch[1]) {
+                const styleProps = styleMatch[1].split(';');
+                styleProps.forEach(prop => {
+                    const [key, value] = prop.split(':').map(s => s.trim());
+                    if (!value) return; // Skip if no value after colon
+
+                    if (key === 'background-color') styles.backgroundColor = value;
+                    else if (key === 'color') styles.color = value;
+                    else if (key === 'padding') styles.padding = parseInt(value) || styles.padding;
+                    else if (key === 'font-size') styles.fontSize = parseInt(value) || styles.fontSize;
+                    else if (key === 'font-family') styles.fontFamily = value.split(',')[0].trim() || styles.fontFamily; // Take first font
+                    else if (key === 'border') styles.border = value;
+                    else if (key === 'text-align') styles.textAlign = value;
+                });
+            }
+
+            const contentMatch = htmlString.match(/>([^<]+)</); // Simpler regex for content
+            if (contentMatch && contentMatch[1]) {
+                textContent = contentMatch[1].trim();
+            }
+
+            const canvas = textureContext.canvas;
+            textureContext.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Parse border
+            let borderWidth = 0;
+            let borderColor = styles.backgroundColor; // Default border color to bg to be invisible if no style
+            const borderParts = styles.border.match(/(\d+)\s*px\s+\w+\s+(.*)/i); // e.g., "5px solid #RRGGBB" or "5px solid colorName"
+            if (borderParts && borderParts.length === 3) {
+                borderWidth = parseInt(borderParts[1]);
+                borderColor = borderParts[2];
+            }
+            
+            // Effective drawing area considering border
+            const effectiveX = borderWidth / 2;
+            const effectiveY = borderWidth / 2;
+            const effectiveWidth = canvas.width - borderWidth;
+            const effectiveHeight = canvas.height - borderWidth;
+
+            // 1. Draw Background (within border)
+            textureContext.fillStyle = styles.backgroundColor;
+            textureContext.fillRect(effectiveX, effectiveY, effectiveWidth, effectiveHeight);
+
+            // 2. Draw Border (if width > 0)
+            if (borderWidth > 0) {
+                textureContext.strokeStyle = borderColor;
+                textureContext.lineWidth = borderWidth;
+                textureContext.strokeRect(effectiveX, effectiveY, effectiveWidth, effectiveHeight);
+            }
+            
+            // 3. Draw Text (within padding, inside border)
+            textureContext.fillStyle = styles.color;
+            textureContext.font = `bold ${styles.fontSize}px ${styles.fontFamily}`; // Made font bold for clarity
+            textureContext.textBaseline = 'middle';
+            textureContext.textAlign = styles.textAlign;
+
+            let textX;
+            const padding = styles.padding;
+            const contentAreaX = effectiveX + padding;
+            const contentAreaWidth = effectiveWidth - (2 * padding);
+            
+            if (styles.textAlign === 'center') {
+                textX = contentAreaX + contentAreaWidth / 2;
+            } else if (styles.textAlign === 'right') {
+                textX = contentAreaX + contentAreaWidth;
+            } else { // left
+                textX = contentAreaX;
+            }
+            // For simplicity, textY centers in the available padded height
+            const textY = effectiveY + padding + (effectiveHeight - 2 * padding) / 2;
+
+
+            // Crude word wrapping (very basic)
+            const words = textContent.split(' ');
+            let line = '';
+            let currentY = textY - ((words.join(' ').length > 20 ? (styles.fontSize * 1.2) : 0) / 2); // Adjust start Y for potential multiline
+
+            for (let n = 0; n < words.length; n++) {
+                let testLine = line + words[n] + ' ';
+                let metrics = textureContext.measureText(testLine);
+                let testWidth = metrics.width;
+                if (testWidth > contentAreaWidth && n > 0) {
+                    textureContext.fillText(line, textX, currentY);
+                    line = words[n] + ' ';
+                    currentY += styles.fontSize * 1.2; // Line height
+                } else {
+                    line = testLine;
+                }
+            }
+            textureContext.fillText(line, textX, currentY); // Draw the last line
+
+
+            if (canvasTexture) {
+                canvasTexture.needsUpdate = true;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            // Optional: Rotate the plane slightly for visual interest
+            if (planeMesh && !renderer.xr.isPresenting) { // Only rotate if not in VR for easier desktop viewing
+                 // planeMesh.rotation.x += 0.001;
+                 // planeMesh.rotation.y += 0.002;
+            }
+            renderer.render(scene, camera);
+        }
+
+        // --- Start ---
+        init();
+    </script>
+</body>
+</html>
