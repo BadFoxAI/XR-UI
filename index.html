@@ -50,8 +50,8 @@
         const PLANE_BASE_WIDTH = 1.6; 
         const PLANE_HEIGHT = PLANE_BASE_WIDTH / PANEL_ASPECT_RATIO;
         const TEXTURE_BASE_HEIGHT = 540; 
-        const TEXTURE_WIDTH = Math.round(TEXTURE_BASE_HEIGHT * PANEL_ASPECT_RATIO);
-        const TEXTURE_HEIGHT = TEXTURE_BASE_HEIGHT;
+        const TEXTURE_WIDTH = Math.round(TEXTURE_BASE_HEIGHT * PANEL_ASPECT_RATIO); // 960
+        const TEXTURE_HEIGHT = TEXTURE_BASE_HEIGHT; // 540
 
         function init() {
             scene = new THREE.Scene();
@@ -67,6 +67,8 @@
             offscreenCanvas.width = TEXTURE_WIDTH;
             offscreenCanvas.height = TEXTURE_HEIGHT;
             textureContext = offscreenCanvas.getContext('2d');
+            console.log(`Offscreen canvas created: ${TEXTURE_WIDTH}x${TEXTURE_HEIGHT}`);
+
 
             const initialHtml = 
                 `<div id="root" style="background-color: #181818; color: #E0E0E0; padding: 10px; font-family: 'Segoe UI', Tahoma; font-size: 20px; border: 1px solid #444;">
@@ -78,10 +80,10 @@
                     </p>
                     <div id="content" style="background-color: #202020; padding: 10px; margin-bottom:10px; border-left: 3px solid #5555FF;">
                         <span id="span1" style="color: #88CCFF; font-style: italic;">A span in a div.</span>
-                        <p id="para2" style="color: #FFDD88; margin-top: 5px; font-size: 16px;">Nested paragraph.</p>
+                        <p id="para2" style="color: #FFDD88; margin-top: 5px; font-size: 16px;">Nested paragraph here. Longer to test wrap.</p>
                     </div>
                     <div id="footer" style="margin-top: 15px; padding-top: 5px; border-top: 1px solid #333; font-size: 14px; text-align: right; color: #888;">
-                        Footer
+                        Footer Text
                     </div>
                 </div>`;
             renderHTMLToTexture(initialHtml);
@@ -142,7 +144,7 @@
 
         function renderElementAndChildren(node, ctx, x, y, availableWidth) {
             const id = node.attributes.id || 'NO_ID';
-            console.log(`[RenderStart] <${node.tagName} id="${id}"> at y:${y.toFixed(1)}, availableWidth:${availableWidth.toFixed(1)}`);
+            // console.log(`[RenderStart] <${node.tagName} id="${id}"> at y:${y.toFixed(1)}, availableWidth:${availableWidth.toFixed(1)}`);
             
             const styles = parseStyleString(node.attributes.style);
             const s = { 
@@ -180,7 +182,7 @@
                 ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
                 const words = textContent.split(' '); 
                 let currentLine = '';
-                const contentAreaForTextWidth = Math.max(1, elementRectWidth - s.paddingLeft - s.paddingRight); // Guard against 0 or negative
+                const contentAreaForTextWidth = Math.max(1, elementRectWidth - s.paddingLeft - s.paddingRight);
                 for (let n = 0; n < words.length; n++) {
                     let testLine = currentLine + words[n] + ' ';
                     if (ctx.measureText(testLine.trim()).width > contentAreaForTextWidth && currentLine.length > 0) {
@@ -193,75 +195,80 @@
                 if (currentLine.trim().length > 0) textLines.push(currentLine.trim());
             }
             const textBlockHeight = textLines.length * lineHeight;
-            console.log(`  [TextCalc] <${node.tagName} id="${id}"> Text: "${textContent.substring(0,20)}...", Lines: ${textLines.length}, TextH: ${textBlockHeight.toFixed(1)}`);
+            // console.log(`  [TextCalc] <${node.tagName} id="${id}"> Text: "${textContent.substring(0,20)}...", Lines: ${textLines.length}, TextH: ${textBlockHeight.toFixed(1)}`);
             
             let currentElementInnerHeight = textBlockHeight;
 
             const childrenContentBoxX = elementRectX + s.paddingLeft;
             let childrenCurrentY = elementRectY + s.paddingTop + textBlockHeight; 
-            const childrenAvailableWidth = Math.max(1, elementRectWidth - s.paddingLeft - s.paddingRight); // Guard
+            const childrenAvailableWidth = Math.max(1, elementRectWidth - s.paddingLeft - s.paddingRight);
             
             let accumulatedChildrenHeight = 0;
             node.children.forEach(childNode => {
                 if (typeof childNode !== 'string') {
-                    console.log(`    [Child] <${node.tagName} id="${id}"> processing child <${childNode.tagName} id="${childNode.attributes.id || 'NO_ID'}"> at childY: ${childrenCurrentY.toFixed(1)}`);
+                    // console.log(`    [Child] <${node.tagName} id="${id}"> processing child <${childNode.tagName} id="${childNode.attributes.id || 'NO_ID'}"> at childY: ${childrenCurrentY.toFixed(1)}`);
                     const childTotalHeight = renderElementAndChildren(childNode, ctx, childrenContentBoxX, childrenCurrentY, childrenAvailableWidth);
-                    console.log(`    [Child] <${node.tagName} id="${id}"> child <${childNode.tagName} id="${childNode.attributes.id || 'NO_ID'}"> reported height: ${childTotalHeight.toFixed(1)}`);
+                    // console.log(`    [Child] <${node.tagName} id="${id}"> child <${childNode.tagName} id="${childNode.attributes.id || 'NO_ID'}"> reported height: ${childTotalHeight.toFixed(1)}`);
                     childrenCurrentY += childTotalHeight; 
                     accumulatedChildrenHeight += childTotalHeight;
                 }
             });
             currentElementInnerHeight += accumulatedChildrenHeight;
-            console.log(`  [HeightCalc] <${node.tagName} id="${id}"> InnerH: ${currentElementInnerHeight.toFixed(1)} (OwnTextH: ${textBlockHeight.toFixed(1)}, ChildrenTotalH: ${accumulatedChildrenHeight.toFixed(1)})`);
+            // console.log(`  [HeightCalc] <${node.tagName} id="${id}"> InnerH: ${currentElementInnerHeight.toFixed(1)} (OwnTextH: ${textBlockHeight.toFixed(1)}, ChildrenTotalH: ${accumulatedChildrenHeight.toFixed(1)})`);
             
             const currentElementTotalPaddedHeight = s.paddingTop + currentElementInnerHeight + s.paddingBottom;
-            const elementRectHeight = currentElementTotalPaddedHeight; // This is the height of the box for background/border
-            console.log(`  [DrawBox] <${node.tagName} id="${id}"> RectY: ${elementRectY.toFixed(1)}, RectH: ${elementRectHeight.toFixed(1)} for background/border`);
+            const elementRectHeight = currentElementTotalPaddedHeight; 
+            // console.log(`  [DrawBox] <${node.tagName} id="${id}"> RectX: ${elementRectX.toFixed(1)}, RectY: ${elementRectY.toFixed(1)}, RectW: ${elementRectWidth.toFixed(1)}, RectH: ${elementRectHeight.toFixed(1)} for background/border`);
 
-            if (elementRectHeight <= 0 && (textLines.length > 0 || node.children.filter(c => typeof c !== 'string').length > 0)) {
-                console.error(`ERROR: <${node.tagName} id="${id}"> calculated zero/negative RectHeight (${elementRectHeight.toFixed(1)}) but has content!`);
-                // Draw an error indicator
-                ctx.fillStyle = 'magenta';
-                ctx.fillRect(elementRectX, elementRectY, elementRectWidth, Math.max(20, s.fontSize)); // Draw a 20px high error box
-                ctx.fillStyle = 'white';
-                ctx.font = '12px Arial';
-                ctx.fillText(`RenderErr H=${elementRectHeight.toFixed(1)}`, elementRectX + 2, elementRectY + 12);
+
+            // TEMP DEBUG: Force root to draw full height and bright color
+            if (node.attributes.id === 'root') {
+                console.log("!!! FORCING ROOT DRAW !!! Actual calculated RectH for root's background:", elementRectHeight.toFixed(1));
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.3)'; // Bright red semi-transparent
+                ctx.fillRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT); // Fill entire canvas for root's background for test
+
+                // Now draw the calculated root border based on its actual content height
+                if (s.borderWidth > 0) {
+                    ctx.strokeStyle = s.borderColor; ctx.lineWidth = s.borderWidth;
+                    ctx.strokeRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
+                 }
+
+            } else { // Normal drawing for non-root elements
+                 if (s.backgroundColor !== 'transparent') {
+                    ctx.fillStyle = s.backgroundColor;
+                    ctx.fillRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
+                }
+                if (s.borderWidth > 0) {
+                    ctx.strokeStyle = s.borderColor; ctx.lineWidth = s.borderWidth;
+                    if (s.borderStyle === 'dashed') ctx.setLineDash([s.borderWidth * 2, s.borderWidth * 1.5]);
+                    else if (s.borderStyle === 'dotted') ctx.setLineDash([s.borderWidth, s.borderWidth]);
+                    else ctx.setLineDash([]);
+                    ctx.strokeRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
+                    ctx.setLineDash([]);
+                }
             }
 
-
-            if (s.backgroundColor !== 'transparent') {
-                ctx.fillStyle = s.backgroundColor;
-                ctx.fillRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
-            }
-            if (s.borderWidth > 0) {
-                ctx.strokeStyle = s.borderColor; ctx.lineWidth = s.borderWidth;
-                if (s.borderStyle === 'dashed') ctx.setLineDash([s.borderWidth * 2, s.borderWidth * 1.5]);
-                else if (s.borderStyle === 'dotted') ctx.setLineDash([s.borderWidth, s.borderWidth]);
-                else ctx.setLineDash([]);
-                ctx.strokeRect(elementRectX, elementRectY, elementRectWidth, elementRectHeight);
-                ctx.setLineDash([]);
-            }
-
+            // Draw text content of *this* element
             if (textLines.length > 0) {
                 ctx.fillStyle = s.color; ctx.font = `${s.fontWeight} ${s.fontSize}px ${s.fontFamily}`;
                 ctx.textBaseline = 'top'; ctx.textAlign = s.textAlign;
                 let textDrawY = elementRectY + s.paddingTop;
                 for (let i = 0; i < textLines.length; i++) {
                     let drawX = elementRectX + s.paddingLeft;
-                    if (s.textAlign === 'center') drawX = elementRectX + s.paddingLeft + (childrenAvailableWidth / 2); // Use childrenAvailableWidth for text centering
+                    if (s.textAlign === 'center') drawX = elementRectX + s.paddingLeft + (childrenAvailableWidth / 2);
                     else if (s.textAlign === 'right') drawX = elementRectX + s.paddingLeft + childrenAvailableWidth;
                     
-                    if (textDrawY + s.fontSize <= elementRectY + elementRectHeight - s.paddingBottom + 2) { // +2 for minor precision
+                    if (textDrawY + s.fontSize <= elementRectY + elementRectHeight - s.paddingBottom + 2) {
                          ctx.fillText(textLines[i], drawX, textDrawY);
                     } else {
-                        console.warn(`Text "${textLines[i]}" clipped for <${node.tagName} id="${id}">`);
+                        // console.warn(`Text "${textLines[i]}" clipped for <${node.tagName} id="${id}">`);
                     }
                     textDrawY += lineHeight;
                 }
             }
             
             const returnValue = s.borderWidth * 2 + currentElementTotalPaddedHeight + s.marginTop + s.marginBottom;
-            console.log(`[RenderEnd] <${node.tagName} id="${id}"> Returning total occupied height: ${returnValue.toFixed(1)}`);
+            // console.log(`[RenderEnd] <${node.tagName} id="${id}"> Returning total occupied height: ${returnValue.toFixed(1)}`);
             return returnValue;
         }
 
@@ -269,7 +276,7 @@
             let currentY = y; 
             nodes.forEach(node => {
                 if (typeof node === 'string') {
-                    console.warn("Standalone text node in tree (ignored by block layout):", node);
+                    // console.warn("Standalone text node in tree (ignored by block layout):", node);
                 } else {
                     const elementTotalHeight = renderElementAndChildren(node, ctx, x, currentY, availableWidth);
                     currentY += elementTotalHeight; 
@@ -278,10 +285,10 @@
         }
 
         function renderHTMLToTexture(htmlString) {
-            console.log("--- Rendering HTML to Texture ---");
+            console.log(`--- Rendering HTML to Texture (${TEXTURE_WIDTH}x${TEXTURE_HEIGHT}) ---`);
             textureContext.clearRect(0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
             const nodeTree = parseHTMLString(htmlString);
-            // console.log("Parsed Node Tree:", JSON.stringify(nodeTree, null, 2)); // VERY verbose
+            // console.log("Parsed Node Tree:", JSON.stringify(nodeTree, null, 2));
 
             if (nodeTree.length > 0) {
                 renderNodeTree(nodeTree, textureContext, 0, 0, TEXTURE_WIDTH, TEXTURE_HEIGHT);
